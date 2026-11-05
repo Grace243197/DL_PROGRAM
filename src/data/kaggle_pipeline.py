@@ -274,6 +274,11 @@ def process_video(video: Path, entry: dict, split: dict, config: dict) -> dict:
     cap = cv2.VideoCapture(str(video))
     if not cap.isOpened():
         raise RuntimeError(f"OpenCV cannot open {video}; the source is retained")
+    orientation = int(cap.get(cv2.CAP_PROP_ORIENTATION_META)) % 360
+    auto_orientation = cap.set(cv2.CAP_PROP_ORIENTATION_AUTO, 1)
+    if orientation and not auto_orientation:
+        cap.release()
+        raise RuntimeError(f"Cannot apply {orientation}-degree video orientation: {video}")
     fps = cap.get(cv2.CAP_PROP_FPS)
     frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     window_frames = int(round(fps * settings["window_seconds"]))
@@ -322,6 +327,7 @@ def process_video(video: Path, entry: dict, split: dict, config: dict) -> dict:
         "source_file": entry["name"], "video_key": entry["key"],
         "split": set_name, "subject_id": entry["subject_id"],
         "label": int(entry["label"]), "fps": fps,
+        "orientation_degrees": orientation,
         "source_frames": frames, "window_count": len(rows),
         "face_size": settings["face_size"],
         "sampled_frames": len(rows) * settings["frames_per_window"],
@@ -386,13 +392,22 @@ def consolidate(manifest: dict) -> dict:
                                       for name, count in windows_by_split.items()}}
 
 
-def run(config: dict, limit_files: int | None = None) -> dict:
+def run(config: dict, limit_files: int | None = None, only_key: str | None = None) -> dict:
     split = freeze_split()
     session = make_session()
     manifest = freeze_manifest(session, config)
     status_dir = ROOT / "data" / "status"
     status_dir.mkdir(parents=True, exist_ok=True)
     selected = manifest["files"][:limit_files] if limit_files else manifest["files"]
+    if only_key:
+        selected = [entry for entry in manifest["files"] if entry["key"] == only_key]
+        if len(selected) != 1:
+            raise RuntimeError(f"Manifest has no unique video key: {only_key}")
+    else:
+        quality_holds = [path.stem for path in status_dir.glob("*.json")
+                         if read_json(path).get("source_retained_for_review", False)]
+        if quality_holds:
+            raise RuntimeError(f"Quality hold: review and reprocess these videos before continuing: {quality_holds}")
     for index, entry in enumerate(selected, 1):
         marker = status_dir / f"{entry['key']}.json"
         if marker.exists():
@@ -427,6 +442,8 @@ def run(config: dict, limit_files: int | None = None) -> dict:
             archive.unlink(missing_ok=True)
         print(f"  windows={summary['window_count']} failure={summary['detection_failure_rate']:.1%}"
               f" retained={keep_source}", flush=True)
+        if keep_source:
+            raise RuntimeError(f"Face detection failure exceeds cleanup threshold; queue paused: {entry['name']}")
     result = consolidate(manifest)
     print(result, flush=True)
     return result
@@ -437,15 +454,16 @@ def main() -> None:
     parser.add_argument("command", choices=("manifest", "pilot", "run", "status"))
     parser.add_argument("--config", type=Path)
     parser.add_argument("--limit-files", type=int, default=3)
+    parser.add_argument("--only-key", help="Process exactly one frozen-manifest video key")
     args = parser.parse_args()
     config = load_config(args.config)
     if args.command == "manifest":
         manifest = freeze_manifest(make_session(), config)
         print(f"{manifest['dataset']} version={manifest['version']} videos={len(manifest['files'])}")
     elif args.command == "pilot":
-        run(config, args.limit_files)
+        run(config, args.limit_files, args.only_key)
     elif args.command == "run":
-        run(config)
+        run(config, only_key=args.only_key)
     else:
         manifest = read_json(ROOT / "splits" / "source_manifest.json")
         print(consolidate(manifest))

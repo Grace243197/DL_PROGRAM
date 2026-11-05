@@ -23,6 +23,7 @@ the token into code, logs, or a report.
 .\.venv\Scripts\python.exe -m src.data.kaggle_pipeline manifest
 & .\scripts\start_pipeline.ps1 -Mode pilot -LimitFiles 3
 & .\scripts\start_pipeline.ps1 -Mode run
+& .\scripts\watch_pipeline.ps1
 .\.venv\Scripts\python.exe -m src.data.kaggle_pipeline status
 .\.venv\Scripts\python.exe -m src.data.rf_baseline
 ```
@@ -38,7 +39,8 @@ Kaggle wraps it in ZIP,
 processed into 5-second non-overlapping windows with 16 sampled 160x160 face frames,
 and verified. It retains the processed `.npz` windows and feature tables. Only after
 verification does it delete its own downloaded ZIP and extracted source video. If
-the face detection failure rate exceeds 10%, the source is retained for review.
+the face detection failure rate exceeds 10%, the source is retained and the queue
+pauses for review. MOV rotation metadata is applied before face detection.
 
 `features/windows.csv` is consolidated from completed videos. A final RF run is
 blocked until every manifest video has a completion marker; `--allow-partial`
@@ -56,3 +58,8 @@ process, retries an interrupted queue up to three times, and runs RF-Prior only
 after all manifest videos are complete. The launcher blocks duplicate live full
 runs. A machine shutdown stops both background processes; start the full run
 again after reboot to resume.
+
+`watch_pipeline.ps1` refreshes every 10 seconds and shows completed videos, the
+current partial-download size, or the number of processed windows. Press Ctrl+C
+to stop watching; use `-Once` for a single snapshot. The download size is received
+ZIP bytes, so it is not a reliable per-video completion percentage.
