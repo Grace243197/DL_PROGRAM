@@ -1,0 +1,32 @@
+dataset:
+  owner: thuannn18022005
+  slug: uta-rldd-full
+  expected_subjects: 60
+  labels:
+    '0': alert
+    '5': low_vigilant
+    '10': drowsy
+split:
+  seed: 20261105
+  train: 42
+  val: 9
+  test: 9
+preprocessing:
+  window_seconds: 5
+  frames_per_window: 16
+  face_size: 160
+  face_margin: 0.20
+  jpeg_quality: 88
+  max_failure_rate_for_cleanup: 0.10
+  ear_closed_threshold: 0.20
+  mar_yawn_threshold: 0.60
+download:
+  max_attempts: 12
+  chunk_bytes: 1048576
+  connect_timeout_seconds: 20
+  read_timeout_seconds: 180
+rf:
+  seeds: [42, 43, 44]
+  n_estimators: 300
+  min_samples_leaf: 2
+

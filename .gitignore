@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.tmp_inspect/
+.secrets/
+kaggle_api_key.txt
+data/*
+!data/.gitkeep
+features/*
+!features/.gitkeep
+results/*
+!results/.gitkeep
+experiments/*
+!experiments/.gitkeep
+*.part
+
