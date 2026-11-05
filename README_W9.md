@@ -51,7 +51,8 @@ camera intrinsics and should not be treated as calibrated physical angle. Video
 windowing uses the nominal FPS reported by OpenCV; variable-FPS files need an
 additional timestamp audit before final reporting.
 
-When the full run is launched here, a separate `scripts/finish_w9.ps1` watcher can
-wait for its process, retry an interrupted queue up to three times, and run the RF
-baseline only after all manifest videos are complete. A machine shutdown stops both
-background processes; start the full run again after reboot to resume.
+The full-run launcher also starts `scripts/finish_w9.ps1`. It waits for the download
+process, retries an interrupted queue up to three times, and runs RF-Prior only
+after all manifest videos are complete. The launcher blocks duplicate live full
+runs. A machine shutdown stops both background processes; start the full run
+again after reboot to resume.
