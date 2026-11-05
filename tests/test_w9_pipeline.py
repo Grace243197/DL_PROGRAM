@@ -88,4 +88,3 @@ def test_opencv_reads_video_beneath_unicode_directory(tmp_path):
         assert ok and frame is not None
     finally:
         reader.release()
-

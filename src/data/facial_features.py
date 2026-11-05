@@ -145,4 +145,3 @@ def summarize_priors(priors: np.ndarray, valid: np.ndarray, settings: dict) -> d
     result["blink_events_sampled"] = float(_event_count(ear, settings["ear_closed_threshold"], False))
     result["yawn_events_sampled"] = float(_event_count(mar, settings["mar_yawn_threshold"], True))
     return result
-

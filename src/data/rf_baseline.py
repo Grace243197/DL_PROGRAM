@@ -92,12 +92,18 @@ def evaluate(allow_partial: bool = False) -> dict:
         "config_sha256": sha256_file(config_path),
         "feature_names": feature_names,
         "window_counts": {name: len(subsets[name]) for name in subsets},
+        "detection_failure_rate_by_split": {
+            name: float(subsets[name]["detection_failure_rate"].mean()) for name in subsets
+        },
         "seeds": results,
         "macro_f1_mean": {name: float(np.mean([item[name]["macro_f1"] for item in results]))
                           for name in ("val", "test")},
         "macro_f1_std": {name: float(np.std([item[name]["macro_f1"] for item in results], ddof=1))
                          for name in ("val", "test")},
     }
+    output["test_detection_failure_over_10_percent"] = (
+        output["detection_failure_rate_by_split"]["test"] > 0.10
+    )
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     target = ROOT / "results" / f"rf_prior_{output['status']}_{timestamp}.json"
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -135,4 +141,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

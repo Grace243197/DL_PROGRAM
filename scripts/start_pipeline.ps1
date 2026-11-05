@@ -49,4 +49,3 @@ $process = Start-Process -FilePath $python -ArgumentList $arguments `
     StandardOutput = $stdout
     StandardError = $stderr
 }
-
