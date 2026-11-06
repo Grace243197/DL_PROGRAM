@@ -32,6 +32,13 @@ The launcher maps the same project directory to `Z:` so MediaPipe can load its
 bundled model despite the Chinese parent path. The alias is recreated when needed;
 if `Z:` is occupied by another drive, choose a free letter in the launcher.
 
+If a video pauses for face-detection failures caused by a small face, retain its
+original video, archive that video's failed status marker and processed directory,
+then reprocess only its key with `run --only-key KEY --face-detection-fallback`.
+This opt-in pass uses full-range face detection to locate a small face before
+running Face Mesh on the face region. Record its use in the video summary and
+check the resulting failure rate before resuming the full queue.
+
 The pilot processes the first subject's three classes. Review its frame crops,
 failure rates and window counts before `run`. The full command resumes from
 per-video status markers. Each video is downloaded into `data/staging`, extracted if

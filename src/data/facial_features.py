@@ -71,10 +71,17 @@ class FaceExtractor:
             refine_landmarks=True,
             min_detection_confidence=0.5,
         )
+        self.detector = None
+        if settings.get("face_detection_fallback", False):
+            self.detector = mp.solutions.face_detection.FaceDetection(
+                model_selection=1, min_detection_confidence=0.3,
+            )
         self.last_box: tuple[tuple[float, float], float] | None = None
 
     def close(self) -> None:
         self.mesh.close()
+        if self.detector is not None:
+            self.detector.close()
 
     def __enter__(self) -> "FaceExtractor":
         return self
@@ -84,7 +91,26 @@ class FaceExtractor:
 
     def extract(self, frame: np.ndarray) -> FrameResult:
         height, width = frame.shape[:2]
-        detected = self.mesh.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)).multi_face_landmarks
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        detected = self.mesh.process(rgb).multi_face_landmarks
+        origin_x, origin_y = 0, 0
+        region_width, region_height = width, height
+        if not detected and self.detector is not None:
+            faces = self.detector.process(rgb).detections
+            if faces:
+                box = faces[0].location_data.relative_bounding_box
+                center_x = (box.xmin + box.width / 2) * width
+                center_y = (box.ymin + box.height / 2) * height
+                side = max(box.width * width, box.height * height) * 2.0
+                x0 = max(0, int(center_x - side / 2))
+                y0 = max(0, int(center_y - side / 2))
+                x1 = min(width, int(center_x + side / 2))
+                y1 = min(height, int(center_y + side / 2))
+                if x1 > x0 and y1 > y0:
+                    region = rgb[y0:y1, x0:x1]
+                    detected = self.mesh.process(region).multi_face_landmarks
+                    origin_x, origin_y = x0, y0
+                    region_width, region_height = x1 - x0, y1 - y0
         if not detected:
             center, side = self.last_box or ((width / 2, height / 2), min(width, height))
             return FrameResult(
@@ -92,7 +118,9 @@ class FaceExtractor:
                 np.full(len(PRIOR_NAMES), np.nan, dtype=np.float32), False,
             )
 
-        points = np.array([(p.x * width, p.y * height) for p in detected[0].landmark], dtype=np.float32)
+        points = np.array([(origin_x + p.x * region_width,
+                            origin_y + p.y * region_height)
+                           for p in detected[0].landmark], dtype=np.float32)
         eyes = [points[list(indices)].mean(axis=0) for indices in EYES]
         eye_center = (eyes[0] + eyes[1]) / 2
         angle = float(np.degrees(np.arctan2(eyes[1][1] - eyes[0][1], eyes[1][0] - eyes[0][0])))

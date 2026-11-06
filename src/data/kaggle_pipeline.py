@@ -328,6 +328,7 @@ def process_video(video: Path, entry: dict, split: dict, config: dict) -> dict:
         "split": set_name, "subject_id": entry["subject_id"],
         "label": int(entry["label"]), "fps": fps,
         "orientation_degrees": orientation,
+        "face_detection_fallback": bool(settings.get("face_detection_fallback", False)),
         "source_frames": frames, "window_count": len(rows),
         "face_size": settings["face_size"],
         "sampled_frames": len(rows) * settings["frames_per_window"],
@@ -392,7 +393,13 @@ def consolidate(manifest: dict) -> dict:
                                       for name, count in windows_by_split.items()}}
 
 
-def run(config: dict, limit_files: int | None = None, only_key: str | None = None) -> dict:
+def run(config: dict, limit_files: int | None = None, only_key: str | None = None,
+        face_detection_fallback: bool = False) -> dict:
+    if face_detection_fallback:
+        if not only_key:
+            raise RuntimeError("Face-detection fallback requires --only-key")
+        config = {**config, "preprocessing": {**config["preprocessing"],
+                                            "face_detection_fallback": True}}
     split = freeze_split()
     session = make_session()
     manifest = freeze_manifest(session, config)
@@ -455,15 +462,18 @@ def main() -> None:
     parser.add_argument("--config", type=Path)
     parser.add_argument("--limit-files", type=int, default=3)
     parser.add_argument("--only-key", help="Process exactly one frozen-manifest video key")
+    parser.add_argument("--face-detection-fallback", action="store_true",
+                        help="Rescue one small-face video with full-range face detection")
     args = parser.parse_args()
     config = load_config(args.config)
     if args.command == "manifest":
         manifest = freeze_manifest(make_session(), config)
         print(f"{manifest['dataset']} version={manifest['version']} videos={len(manifest['files'])}")
     elif args.command == "pilot":
-        run(config, args.limit_files, args.only_key)
+        run(config, args.limit_files, args.only_key, args.face_detection_fallback)
     elif args.command == "run":
-        run(config, only_key=args.only_key)
+        run(config, only_key=args.only_key,
+            face_detection_fallback=args.face_detection_fallback)
     else:
         manifest = read_json(ROOT / "splits" / "source_manifest.json")
         print(consolidate(manifest))
