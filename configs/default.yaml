@@ -14,6 +14,7 @@ split:
 preprocessing:
   window_seconds: 5
   frames_per_window: 16
+  min_valid_frames_per_window: 12
   face_size: 160
   face_margin: 0.20
   jpeg_quality: 88

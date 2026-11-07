@@ -45,6 +45,15 @@ video's source and quality-hold marker. `start_pipeline.ps1 -Mode run
 It does not run the RF baseline; unresolved holds must be decided and documented
 before the final feature consolidation and evaluation.
 
+The final shared window QC rule keeps windows with at least 12 detected faces out
+of 16 sampled frames, identically across train, validation, and test. Full per-video
+window files remain intact; `features/windows.csv` is the accepted-window manifest,
+and `features/windows_qc_excluded.csv` records rejected windows. For a reviewed
+video whose missed faces reflect genuine occlusion, run
+`python -m src.data.kaggle_pipeline resolve-hold --only-key KEY`, then run the full
+pipeline again to validate all 182 videos, remove the retained source, and rebuild
+the feature manifest before the final RF baseline.
+
 The pilot processes the first subject's three classes. Review its frame crops,
 failure rates and window counts before `run`. The full command resumes from
 per-video status markers. Each video is downloaded into `data/staging`, extracted if
@@ -76,3 +85,18 @@ again after reboot to resume.
 current partial-download size, or the number of processed windows. Press Ctrl+C
 to stop watching; use `-Once` for a single snapshot. The download size is received
 ZIP bytes, so it is not a reliable per-video completion percentage.
+
+## W9 completed run (2026-11-07)
+
+All 182 source videos were decoded and contributed at least one accepted window.
+The frozen subject split remains 42 train / 9 validation / 9 test. Applying the
+same 12-of-16 detected-frame rule to every split retained 22,553 windows and
+excluded 76; the exclusions are listed in `features/windows_qc_excluded.csv`.
+The reviewed `49/10_2.mp4` video contains genuine head-down occlusion: 165 of its
+234 windows were retained, and its original video-level 20.9% detection failure
+rate remains recorded in its status marker.
+
+The final RF-Prior result is `results/rf_prior_full_20261107T115108Z.json`.
+Across three random seeds, mean window-level macro-F1 is 0.433 on validation and
+0.453 on test. Future visual and factor-design models should use
+`features/windows.csv` as their shared accepted-window manifest.

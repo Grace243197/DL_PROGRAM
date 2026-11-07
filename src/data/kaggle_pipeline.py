@@ -22,6 +22,8 @@ from .split import freeze_split
 
 
 VIDEO_NAME = re.compile(r"^(0|5|10)(?:_\d+)?\.(?:mov|mp4|m4v)$", re.IGNORECASE)
+QC_AUDIT_COLUMNS = ("source_file", "video_key", "subject_id", "split", "label",
+                    "window_index", "detection_failure_rate", "npz_path")
 
 
 def token_from_environment() -> str:
@@ -361,10 +363,57 @@ def validate_processed(directory: Path, entry: dict, set_name: str) -> dict:
     return summary
 
 
-def consolidate(manifest: dict) -> dict:
+def window_qc_mask(frame: pd.DataFrame, config: dict) -> pd.Series:
+    settings = config["preprocessing"]
+    sampled = int(settings["frames_per_window"])
+    minimum = int(settings["min_valid_frames_per_window"])
+    if not 1 <= minimum <= sampled:
+        raise RuntimeError("Invalid minimum valid frames per window")
+    rates = pd.to_numeric(frame["detection_failure_rate"], errors="raise")
+    if rates.isna().any() or ((rates < 0) | (rates > 1)).any():
+        raise RuntimeError("Invalid window detection failure rate")
+    return rates <= (sampled - minimum) / sampled + 1e-9
+
+
+def resolve_quality_hold(key: str, config: dict) -> dict:
+    manifest = read_json(ROOT / "splits" / "source_manifest.json")
+    entries = [entry for entry in manifest["files"] if entry["key"] == key]
+    if len(entries) != 1:
+        raise RuntimeError(f"Manifest has no unique video key: {key}")
+    entry = entries[0]
+    marker = ROOT / "data" / "status" / f"{key}.json"
+    status = read_json(marker)
+    if not status.get("source_retained_for_review", False):
+        raise RuntimeError(f"Video is not on quality hold: {key}")
+    video = ROOT / "data" / "staging" / (key + Path(entry["name"]).suffix.lower())
+    if not video.exists():
+        raise RuntimeError(f"Quality-review source is missing: {video}")
+    split = freeze_split()
+    validate_processed(ROOT / status["output_dir"], entry,
+                       _split_for(entry["subject_id"], split))
+    frame = pd.read_csv(ROOT / status["output_dir"] / "features.csv")
+    kept = int(window_qc_mask(frame, config).sum())
+    if kept < 1:
+        raise RuntimeError(f"No usable windows remain after quality control: {key}")
+    status["quality_resolution"] = {
+        "reason": "genuine_face_occlusion",
+        "rule": "uniform_min_valid_frames_per_window",
+        "min_valid_frames_per_window": config["preprocessing"]["min_valid_frames_per_window"],
+        "retained_windows": kept,
+        "excluded_windows": len(frame) - kept,
+    }
+    status["source_retained_for_review"] = False
+    write_json_atomic(marker, status)
+    return status
+
+
+def consolidate(manifest: dict, config: dict | None = None) -> dict:
+    config = config or load_config()
     status_dir = ROOT / "data" / "status"
     rows = []
+    excluded_rows = []
     counts = Counter()
+    excluded_counts = Counter()
     failure_sum = Counter()
     quality_holds = []
     for entry in manifest["files"]:
@@ -379,20 +428,39 @@ def consolidate(manifest: dict) -> dict:
         if not path.exists():
             raise RuntimeError(f"Missing feature table for completed video: {entry['name']}")
         frame = pd.read_csv(path)
-        rows.append(frame)
-        counts[(status["split"], status["label"])] += len(frame)
-        failure_sum[status["split"]] += float(frame["detection_failure_rate"].sum())
+        mask = window_qc_mask(frame, config)
+        kept = frame.loc[mask]
+        if kept.empty:
+            raise RuntimeError(f"No usable windows for completed video: {entry['name']}")
+        rejected = frame.loc[~mask, [name for name in QC_AUDIT_COLUMNS if name in frame]].copy()
+        if not rejected.empty:
+            rejected["qc_reason"] = "fewer_than_min_valid_frames"
+            excluded_rows.append(rejected)
+        rows.append(kept)
+        counts[(status["split"], status["label"])] += len(kept)
+        excluded_counts[(status["split"], status["label"])] += len(rejected)
+        failure_sum[status["split"]] += float(kept["detection_failure_rate"].sum())
     if rows:
         output = ROOT / "features" / "windows.csv"
         output.parent.mkdir(parents=True, exist_ok=True)
         temporary = output.with_name(output.name + ".part")
         pd.concat(rows, ignore_index=True).to_csv(temporary, index=False)
         os.replace(temporary, output)
+        audit = ROOT / "features" / "windows_qc_excluded.csv"
+        rejected = (pd.concat(excluded_rows, ignore_index=True) if excluded_rows else
+                    pd.DataFrame(columns=[*QC_AUDIT_COLUMNS, "qc_reason"]))
+        temporary = audit.with_name(audit.name + ".part")
+        rejected.to_csv(temporary, index=False)
+        os.replace(temporary, audit)
     windows_by_split = Counter()
     for (name, _), count in counts.items():
         windows_by_split[name] += count
     return {"videos_done": len(rows), "videos_total": len(manifest["files"]),
             "quality_holds": quality_holds,
+            "min_valid_frames_per_window": config["preprocessing"]["min_valid_frames_per_window"],
+            "excluded_windows": sum(excluded_counts.values()),
+            "excluded_windows_by_split_class": {
+                f"{s}/{label}": count for (s, label), count in sorted(excluded_counts.items()) if count},
             "windows_by_split_class": {f"{s}/{label}": count for (s, label), count in sorted(counts.items())},
             "failure_rate_by_split": {name: failure_sum[name] / count
                                       for name, count in windows_by_split.items()}}
@@ -462,14 +530,14 @@ def run(config: dict, limit_files: int | None = None, only_key: str | None = Non
             raise RuntimeError(f"Face detection failure exceeds cleanup threshold; queue paused: {entry['name']}")
     if not only_key and continue_past_quality_holds and quality_holds:
         raise RuntimeError(f"Queue reached the end with unresolved quality holds: {quality_holds}; RF is blocked")
-    result = consolidate(manifest)
+    result = consolidate(manifest, config)
     print(result, flush=True)
     return result
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Incremental UTA-RLDD W9 pipeline")
-    parser.add_argument("command", choices=("manifest", "pilot", "run", "status"))
+    parser.add_argument("command", choices=("manifest", "pilot", "run", "status", "resolve-hold"))
     parser.add_argument("--config", type=Path)
     parser.add_argument("--limit-files", type=int, default=3)
     parser.add_argument("--only-key", help="Process exactly one frozen-manifest video key")
@@ -489,9 +557,14 @@ def main() -> None:
         run(config, only_key=args.only_key,
             face_detection_fallback=args.face_detection_fallback,
             continue_past_quality_holds=args.continue_past_quality_holds)
+    elif args.command == "resolve-hold":
+        if not args.only_key:
+            raise RuntimeError("resolve-hold requires --only-key")
+        status = resolve_quality_hold(args.only_key, config)
+        print(f"resolved {args.only_key}: {status['quality_resolution']}")
     else:
         manifest = read_json(ROOT / "splits" / "source_manifest.json")
-        print(consolidate(manifest))
+        print(consolidate(manifest, config))
 
 
 if __name__ == "__main__":

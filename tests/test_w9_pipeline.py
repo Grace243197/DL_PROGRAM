@@ -45,7 +45,9 @@ def test_consolidate_excludes_quality_hold(tmp_path, monkeypatch):
     for key, held in (("clean", False), ("held", True)):
         output = tmp_path / "data" / "windows" / key
         output.mkdir(parents=True)
-        pd.DataFrame([{"video_key": key, "detection_failure_rate": 0.0}]).to_csv(
+        rates = [0.0, 5 / 16] if not held else [0.0]
+        pd.DataFrame([{"video_key": key, "detection_failure_rate": rate}
+                      for rate in rates]).to_csv(
             output / "features.csv", index=False,
         )
         (status_dir / f"{key}.json").write_text(json.dumps({
@@ -56,7 +58,14 @@ def test_consolidate_excludes_quality_hold(tmp_path, monkeypatch):
     result = pipeline.consolidate({"files": entries})
     assert result["videos_done"] == 1
     assert result["quality_holds"] == ["held"]
+    assert result["excluded_windows"] == 1
     assert pd.read_csv(tmp_path / "features" / "windows.csv")["video_key"].tolist() == ["clean"]
+    assert pd.read_csv(tmp_path / "features" / "windows_qc_excluded.csv")["video_key"].tolist() == ["clean"]
+
+
+def test_window_qc_requires_twelve_of_sixteen_detected_frames():
+    frame = pd.DataFrame({"detection_failure_rate": [0, 4 / 16, 5 / 16, 1]})
+    assert pipeline.window_qc_mask(frame, load_config()).tolist() == [True, True, False, False]
 
 
 def test_video_processing_writes_two_16_frame_windows(tmp_path, monkeypatch):

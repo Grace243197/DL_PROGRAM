@@ -43,16 +43,24 @@ def evaluate(allow_partial: bool = False) -> dict:
     split = read_json(split_path)
     manifest = read_json(ROOT / "splits" / "source_manifest.json")
     status_dir = ROOT / "data" / "status"
-    complete = 0
+    completed_keys = set()
     for entry in manifest["files"]:
         marker = status_dir / f"{entry['key']}.json"
         if marker.exists() and not read_json(marker).get("source_retained_for_review", False):
-            complete += 1
+            completed_keys.add(entry["key"])
+    complete = len(completed_keys)
     if complete != len(manifest["files"]) and not allow_partial:
         raise RuntimeError(f"Only {complete}/{len(manifest['files'])} videos processed; final RF blocked")
     table = pd.read_csv(ROOT / "features" / "windows.csv")
     if table.empty or table[["split", "subject_id", "label"]].isna().any().any():
         raise RuntimeError("Incomplete feature table")
+    if set(table["video_key"].astype(str)) != completed_keys:
+        raise RuntimeError("Feature table does not match completed video status markers")
+    sampled = config["preprocessing"]["frames_per_window"]
+    minimum = config["preprocessing"]["min_valid_frames_per_window"]
+    if (table["detection_failure_rate"] > (sampled - minimum) / sampled + 1e-9).any():
+        raise RuntimeError("Feature table contains windows failing the frozen QC rule")
+    qc_audit = pd.read_csv(ROOT / "features" / "windows_qc_excluded.csv")
     table["subject_id"] = table["subject_id"].astype(str).str.zfill(2)
     for name in ("train", "val", "test"):
         observed = set(table.loc[table["split"] == name, "subject_id"])
@@ -96,6 +104,8 @@ def evaluate(allow_partial: bool = False) -> dict:
         "config_sha256": sha256_file(config_path),
         "feature_names": feature_names,
         "window_counts": {name: len(subsets[name]) for name in subsets},
+        "window_qc": {"min_valid_frames_per_window": minimum,
+                      "excluded_windows": len(qc_audit)},
         "detection_failure_rate_by_split": {
             name: float(subsets[name]["detection_failure_rate"].mean()) for name in subsets
         },
