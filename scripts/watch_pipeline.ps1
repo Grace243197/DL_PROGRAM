@@ -29,7 +29,6 @@ do {
                 $done[$_.BaseName] = $true
             }
         }
-    $next = $manifest.files | Where-Object { -not $done.ContainsKey($_.key) } | Select-Object -First 1
     $completed = @($manifest.files | Where-Object { $done.ContainsKey($_.key) }).Count
     $total = @($manifest.files).Count
 
@@ -39,6 +38,11 @@ do {
     }
     $process = if ($activePid) { Get-Process -Id $activePid -ErrorAction SilentlyContinue }
     $state = if ($process) { "running PID $activePid" } else { 'not running' }
+    $pending = $manifest.files | Where-Object {
+        -not $done.ContainsKey($_.key) -and -not $holds.ContainsKey($_.key)
+    } | Select-Object -First 1
+    $firstHold = $manifest.files | Where-Object { $holds.ContainsKey($_.key) } | Select-Object -First 1
+    $next = if ($process -and $pending) { $pending } elseif ($firstHold) { $firstHold } else { $pending }
 
     $detail = 'queue complete'
     if ($next) {
@@ -56,8 +60,8 @@ do {
             $detail = "next $($next.key): waiting"
         }
     }
-    '{0} | {1}/{2} videos ({3:N1}%) | {4} | {5}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'),
-        $completed, $total, (100 * $completed / $total), $state, $detail
+    '{0} | {1}/{2} videos ({3:N1}%) | {4} hold(s) | {5} | {6}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'),
+        $completed, $total, (100 * $completed / $total), $holds.Count, $state, $detail
 
     if ($Once -or $completed -eq $total -or -not $process) { break }
     Start-Sleep -Seconds $IntervalSeconds

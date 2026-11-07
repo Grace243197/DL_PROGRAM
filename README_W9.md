@@ -39,6 +39,12 @@ This opt-in pass uses full-range face detection to locate a small face before
 running Face Mesh on the face region. Record its use in the video summary and
 check the resulting failure rate before resuming the full queue.
 
+If review shows genuine face occlusion rather than a detector defect, keep that
+video's source and quality-hold marker. `start_pipeline.ps1 -Mode run
+-ContinuePastQualityHolds` skips reviewed held videos while processing later ones.
+It does not run the RF baseline; unresolved holds must be decided and documented
+before the final feature consolidation and evaluation.
+
 The pilot processes the first subject's three classes. Review its frame crops,
 failure rates and window counts before `run`. The full command resumes from
 per-video status markers. Each video is downloaded into `data/staging`, extracted if

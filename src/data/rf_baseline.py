@@ -43,7 +43,11 @@ def evaluate(allow_partial: bool = False) -> dict:
     split = read_json(split_path)
     manifest = read_json(ROOT / "splits" / "source_manifest.json")
     status_dir = ROOT / "data" / "status"
-    complete = sum((status_dir / f"{entry['key']}.json").exists() for entry in manifest["files"])
+    complete = 0
+    for entry in manifest["files"]:
+        marker = status_dir / f"{entry['key']}.json"
+        if marker.exists() and not read_json(marker).get("source_retained_for_review", False):
+            complete += 1
     if complete != len(manifest["files"]) and not allow_partial:
         raise RuntimeError(f"Only {complete}/{len(manifest['files'])} videos processed; final RF blocked")
     table = pd.read_csv(ROOT / "features" / "windows.csv")

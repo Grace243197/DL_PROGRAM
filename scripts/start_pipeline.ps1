@@ -1,7 +1,8 @@
 param(
     [ValidateSet('pilot', 'run')]
     [string]$Mode = 'run',
-    [int]$LimitFiles = 3
+    [int]$LimitFiles = 3,
+    [switch]$ContinuePastQualityHolds
 )
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -48,6 +49,8 @@ $stderr = Join-Path $logDir "pipeline_${Mode}_${stamp}.err.log"
 $arguments = @('-m', 'src.data.kaggle_pipeline', $Mode)
 if ($Mode -eq 'pilot') {
     $arguments += @('--limit-files', $LimitFiles.ToString())
+} elseif ($ContinuePastQualityHolds) {
+    $arguments += '--continue-past-quality-holds'
 }
 
 $process = Start-Process -FilePath $python -ArgumentList $arguments `
@@ -57,15 +60,17 @@ $process = Start-Process -FilePath $python -ArgumentList $arguments `
 $watcherProcessId = $null
 if ($Mode -eq 'run') {
     Set-Content -LiteralPath $pidFile -Value $process.Id -Encoding ASCII
-    $watcher = Join-Path $PSScriptRoot 'finish_w9.ps1'
-    $watchOut = Join-Path $logDir "finish_w9_${stamp}.out.log"
-    $watchErr = Join-Path $logDir "finish_w9_${stamp}.err.log"
-    $watchProcess = Start-Process -FilePath 'powershell.exe' `
-        -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $watcher,
-                        '-PipelinePid', $process.Id.ToString()) `
-        -WorkingDirectory $aliasRoot -RedirectStandardOutput $watchOut `
-        -RedirectStandardError $watchErr -WindowStyle Hidden -PassThru
-    $watcherProcessId = $watchProcess.Id
+    if (-not $ContinuePastQualityHolds) {
+        $watcher = Join-Path $PSScriptRoot 'finish_w9.ps1'
+        $watchOut = Join-Path $logDir "finish_w9_${stamp}.out.log"
+        $watchErr = Join-Path $logDir "finish_w9_${stamp}.err.log"
+        $watchProcess = Start-Process -FilePath 'powershell.exe' `
+            -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $watcher,
+                            '-PipelinePid', $process.Id.ToString()) `
+            -WorkingDirectory $aliasRoot -RedirectStandardOutput $watchOut `
+            -RedirectStandardError $watchErr -WindowStyle Hidden -PassThru
+        $watcherProcessId = $watchProcess.Id
+    }
 }
 
 [pscustomobject]@{

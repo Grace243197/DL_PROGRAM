@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+import shutil
+
 import cv2
 import numpy as np
-import shutil
+import pandas as pd
 
 from src.data import kaggle_pipeline as pipeline
 from src.data.common import load_config
@@ -32,6 +35,28 @@ def test_window_summary_handles_missing_landmarks():
     summary = summarize_priors(priors, np.zeros(16, dtype=bool), settings)
     assert summary["detection_failure_rate"] == 1.0
     assert np.isnan(summary["ecr_sampled"])
+
+
+def test_consolidate_excludes_quality_hold(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, "ROOT", tmp_path)
+    status_dir = tmp_path / "data" / "status"
+    status_dir.mkdir(parents=True)
+    entries = []
+    for key, held in (("clean", False), ("held", True)):
+        output = tmp_path / "data" / "windows" / key
+        output.mkdir(parents=True)
+        pd.DataFrame([{"video_key": key, "detection_failure_rate": 0.0}]).to_csv(
+            output / "features.csv", index=False,
+        )
+        (status_dir / f"{key}.json").write_text(json.dumps({
+            "output_dir": output.relative_to(tmp_path).as_posix(),
+            "split": "train", "label": 0, "source_retained_for_review": held,
+        }), encoding="utf-8")
+        entries.append({"key": key, "name": f"{key}.mp4"})
+    result = pipeline.consolidate({"files": entries})
+    assert result["videos_done"] == 1
+    assert result["quality_holds"] == ["held"]
+    assert pd.read_csv(tmp_path / "features" / "windows.csv")["video_key"].tolist() == ["clean"]
 
 
 def test_video_processing_writes_two_16_frame_windows(tmp_path, monkeypatch):

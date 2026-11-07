@@ -366,11 +366,15 @@ def consolidate(manifest: dict) -> dict:
     rows = []
     counts = Counter()
     failure_sum = Counter()
+    quality_holds = []
     for entry in manifest["files"]:
         status_file = status_dir / f"{entry['key']}.json"
         if not status_file.exists():
             continue
         status = read_json(status_file)
+        if status.get("source_retained_for_review", False):
+            quality_holds.append(entry["key"])
+            continue
         path = ROOT / status["output_dir"] / "features.csv"
         if not path.exists():
             raise RuntimeError(f"Missing feature table for completed video: {entry['name']}")
@@ -388,13 +392,15 @@ def consolidate(manifest: dict) -> dict:
     for (name, _), count in counts.items():
         windows_by_split[name] += count
     return {"videos_done": len(rows), "videos_total": len(manifest["files"]),
+            "quality_holds": quality_holds,
             "windows_by_split_class": {f"{s}/{label}": count for (s, label), count in sorted(counts.items())},
             "failure_rate_by_split": {name: failure_sum[name] / count
                                       for name, count in windows_by_split.items()}}
 
 
 def run(config: dict, limit_files: int | None = None, only_key: str | None = None,
-        face_detection_fallback: bool = False) -> dict:
+        face_detection_fallback: bool = False,
+        continue_past_quality_holds: bool = False) -> dict:
     if face_detection_fallback:
         if not only_key:
             raise RuntimeError("Face-detection fallback requires --only-key")
@@ -413,7 +419,7 @@ def run(config: dict, limit_files: int | None = None, only_key: str | None = Non
     else:
         quality_holds = [path.stem for path in status_dir.glob("*.json")
                          if read_json(path).get("source_retained_for_review", False)]
-        if quality_holds:
+        if quality_holds and not continue_past_quality_holds:
             raise RuntimeError(f"Quality hold: review and reprocess these videos before continuing: {quality_holds}")
     for index, entry in enumerate(selected, 1):
         marker = status_dir / f"{entry['key']}.json"
@@ -421,6 +427,9 @@ def run(config: dict, limit_files: int | None = None, only_key: str | None = Non
             status = read_json(marker)
             validate_processed(ROOT / status["output_dir"], entry,
                                _split_for(entry["subject_id"], split))
+            if status.get("source_retained_for_review", False):
+                print(f"[{index}/{len(selected)}] quality hold skipped: {entry['name']}", flush=True)
+                continue
             if not status.get("source_retained_for_review", False):
                 archive = ROOT / "data" / "staging" / f"{entry['key']}.zip"
                 source = archive.with_name(entry["key"] + Path(entry["name"]).suffix.lower())
@@ -451,6 +460,8 @@ def run(config: dict, limit_files: int | None = None, only_key: str | None = Non
               f" retained={keep_source}", flush=True)
         if keep_source:
             raise RuntimeError(f"Face detection failure exceeds cleanup threshold; queue paused: {entry['name']}")
+    if not only_key and continue_past_quality_holds and quality_holds:
+        raise RuntimeError(f"Queue reached the end with unresolved quality holds: {quality_holds}; RF is blocked")
     result = consolidate(manifest)
     print(result, flush=True)
     return result
@@ -464,16 +475,20 @@ def main() -> None:
     parser.add_argument("--only-key", help="Process exactly one frozen-manifest video key")
     parser.add_argument("--face-detection-fallback", action="store_true",
                         help="Rescue one small-face video with full-range face detection")
+    parser.add_argument("--continue-past-quality-holds", action="store_true",
+                        help="Skip reviewed held videos, but block final RF until resolved")
     args = parser.parse_args()
     config = load_config(args.config)
     if args.command == "manifest":
         manifest = freeze_manifest(make_session(), config)
         print(f"{manifest['dataset']} version={manifest['version']} videos={len(manifest['files'])}")
     elif args.command == "pilot":
-        run(config, args.limit_files, args.only_key, args.face_detection_fallback)
+        run(config, args.limit_files, args.only_key, args.face_detection_fallback,
+            args.continue_past_quality_holds)
     elif args.command == "run":
         run(config, only_key=args.only_key,
-            face_detection_fallback=args.face_detection_fallback)
+            face_detection_fallback=args.face_detection_fallback,
+            continue_past_quality_holds=args.continue_past_quality_holds)
     else:
         manifest = read_json(ROOT / "splits" / "source_manifest.json")
         print(consolidate(manifest))
