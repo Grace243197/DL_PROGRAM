@@ -96,7 +96,10 @@ The reviewed `49/10_2.mp4` video contains genuine head-down occlusion: 165 of it
 234 windows were retained, and its original video-level 20.9% detection failure
 rate remains recorded in its status marker.
 
-The final RF-Prior result is `results/rf_prior_full_20261107T115108Z.json`.
+The final RF-Prior result after the subject-ID serialization check is
+`results/rf_prior_full_20261107T132621Z.json`.
 Across three random seeds, mean window-level macro-F1 is 0.433 on validation and
 0.453 on test. Future visual and factor-design models should use
-`features/windows.csv` as their shared accepted-window manifest.
+`features/windows.csv` as their shared accepted-window manifest. Read its
+`subject_id` column as a two-character string (for example,
+`pd.read_csv(path, dtype={"subject_id": str})`).

@@ -42,17 +42,19 @@ def test_consolidate_excludes_quality_hold(tmp_path, monkeypatch):
     status_dir = tmp_path / "data" / "status"
     status_dir.mkdir(parents=True)
     entries = []
-    for key, held in (("clean", False), ("held", True)):
+    for key, subject, held in (("clean", "01", False), ("held", "02", True)):
         output = tmp_path / "data" / "windows" / key
         output.mkdir(parents=True)
         rates = [0.0, 5 / 16] if not held else [0.0]
-        pd.DataFrame([{"video_key": key, "detection_failure_rate": rate}
+        pd.DataFrame([{"video_key": key, "subject_id": subject,
+                       "detection_failure_rate": rate}
                       for rate in rates]).to_csv(
             output / "features.csv", index=False,
         )
         (status_dir / f"{key}.json").write_text(json.dumps({
             "output_dir": output.relative_to(tmp_path).as_posix(),
-            "split": "train", "label": 0, "source_retained_for_review": held,
+            "split": "train", "label": 0, "subject_id": subject,
+            "source_retained_for_review": held,
         }), encoding="utf-8")
         entries.append({"key": key, "name": f"{key}.mp4"})
     result = pipeline.consolidate({"files": entries})
@@ -60,7 +62,10 @@ def test_consolidate_excludes_quality_hold(tmp_path, monkeypatch):
     assert result["quality_holds"] == ["held"]
     assert result["excluded_windows"] == 1
     assert pd.read_csv(tmp_path / "features" / "windows.csv")["video_key"].tolist() == ["clean"]
+    assert pd.read_csv(tmp_path / "features" / "windows.csv", dtype={"subject_id": str})["subject_id"].tolist() == ["01"]
     assert pd.read_csv(tmp_path / "features" / "windows_qc_excluded.csv")["video_key"].tolist() == ["clean"]
+    assert pd.read_csv(tmp_path / "features" / "windows_qc_excluded.csv",
+                       dtype={"subject_id": str})["subject_id"].tolist() == ["01"]
 
 
 def test_window_qc_requires_twelve_of_sixteen_detected_frames():

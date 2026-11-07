@@ -427,7 +427,10 @@ def consolidate(manifest: dict, config: dict | None = None) -> dict:
         path = ROOT / status["output_dir"] / "features.csv"
         if not path.exists():
             raise RuntimeError(f"Missing feature table for completed video: {entry['name']}")
-        frame = pd.read_csv(path)
+        frame = pd.read_csv(path, dtype={"subject_id": str})
+        frame["subject_id"] = frame["subject_id"].str.zfill(2)
+        if not (frame["subject_id"] == status["subject_id"]).all():
+            raise RuntimeError(f"Feature subject ID mismatch: {entry['name']}")
         mask = window_qc_mask(frame, config)
         kept = frame.loc[mask]
         if kept.empty:
