@@ -11,6 +11,7 @@ features/*
 !features/.gitkeep
 results/*
 !results/.gitkeep
+!results/rf_prior_full_20261107T132621Z.json
 experiments/*
 !experiments/.gitkeep
 *.part
