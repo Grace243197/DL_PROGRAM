@@ -30,3 +30,23 @@ rf:
   seeds: [42, 43, 44]
   n_estimators: 300
   min_samples_leaf: 2
+model:
+  backbone: mobilenet_v3_small
+  pretrained: true
+  freeze_backbone: true
+  feature_dim: 576
+  prior_dim: 34
+  hidden_dim: 128
+  num_classes: 3
+  dropout: 0.2
+  fusion: film
+  gru_num_layers: 1
+train:
+  seeds: [42, 43, 44]
+  batch_size: 64
+  epochs: 30
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  early_stop_patience: 5
+  num_workers: 4
+  amp: true
