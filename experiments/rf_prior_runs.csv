@@ -1,0 +1,5 @@
+timestamp_utc,status,config,split_sha256,seeds,val_macro_f1_mean,test_macro_f1_mean,result,tag,split_column,split_file,subject_overlap_allowed,test_qwk_seed_best
+20261107T103214Z,pilot_partial,configs\default.yaml,a3ea8514aa29f968370574d34dd815d4f9f9d8036932accdde8c4c914db2d6fb,"42,43,44",0.4256475789648276,0.4497287589914211,results\rf_prior_pilot_partial_20261107T103214Z.json,,,,,
+20261107T115108Z,full,configs\default.yaml,a3ea8514aa29f968370574d34dd815d4f9f9d8036932accdde8c4c914db2d6fb,"42,43,44",0.43304460454260957,0.4530005213230841,results\rf_prior_full_20261107T115108Z.json,,,,,
+20261107T132621Z,full,configs\default.yaml,a3ea8514aa29f968370574d34dd815d4f9f9d8036932accdde8c4c914db2d6fb,"42,43,44",0.43304460454260957,0.4530005213230841,results\rf_prior_full_20261107T132621Z.json,,,,,
+20261126T071228Z,full,configs\default.yaml,43bcc072d8db9aff1b27d66968a6184d2b763f9d62dcd0cdb1677228b8c96a45,"42,43,44",0.811175046172146,0.815794474862119,results\rf_prior_full_within_20261126T071228Z.json,within,within_split,splits\within_subject_split.csv,True,0.7494380144521193

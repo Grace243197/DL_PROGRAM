@@ -1,0 +1,10 @@
+# RTX 5060 Laptop (Blackwell, sm_120) environment.
+#
+# requirements-model.txt pins torch 2.14.1+cu126 for the RTX 4060 machine.
+# CUDA 12.6 does not ship sm_120 kernels, so on the RTX 5060 install this
+# cu128 pair instead.  Python 3.12 wheels are used by the project .venv.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128
+numpy>=1.26,<2
+pytest>=8,<10
