@@ -12,7 +12,9 @@ features/*
 results/*
 !results/.gitkeep
 !results/rf_prior_full_20261107T132621Z.json
+!results/rf_prior_full_within_*.json
 experiments/*
 !experiments/.gitkeep
+!experiments/rf_prior_runs.csv
 *.part
 W9_code.bundle

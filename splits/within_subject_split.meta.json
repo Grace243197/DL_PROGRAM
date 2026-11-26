@@ -1,0 +1,50 @@
+{
+  "created_utc": "2026-11-26T07:11:23Z",
+  "description": "Within each (subject_id, label) group, windows are sorted by source_file and window_index, shuffled with the fixed seed, and assigned 70/15/15. Windows are non-overlapping 5 s windows.",
+  "fractions": {
+    "test": 0.15,
+    "train": 0.7,
+    "val": 0.15
+  },
+  "notes": [
+    "Same 60 subjects appear in train/val/test by design; do not apply the subject-disjoint leakage check.",
+    "Residual temporal correlation between adjacent non-overlapping windows remains a disclosed caveat.",
+    "Use features/windows.csv as the source of truth; do not glob data/windows."
+  ],
+  "num_groups": 180,
+  "num_windows": 22553,
+  "original_split_untouched": true,
+  "output": "splits\\within_subject_split.csv",
+  "output_sha256": "43bcc072d8db9aff1b27d66968a6184d2b763f9d62dcd0cdb1677228b8c96a45",
+  "per_class_counts": {
+    "test": {
+      "0": 1116,
+      "10": 1134,
+      "5": 1128
+    },
+    "train": {
+      "0": 5227,
+      "10": 5301,
+      "5": 5269
+    },
+    "val": {
+      "0": 1116,
+      "10": 1134,
+      "5": 1128
+    }
+  },
+  "protocol": "subject_x_class_random_70_15_15",
+  "seed": 20261105,
+  "source_manifest": "features\\windows.csv",
+  "source_manifest_sha256": "2782e8a02cd388e16691bf51fe4402abeebdeaa2c3cedfb042ec87171e5d5a87",
+  "subject_counts": {
+    "test": 60,
+    "train": 60,
+    "val": 60
+  },
+  "window_counts": {
+    "test": 3378,
+    "train": 15797,
+    "val": 3378
+  }
+}

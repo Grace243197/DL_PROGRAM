@@ -11,6 +11,13 @@ split:
   train: 42
   val: 9
   test: 9
+within_split:
+  # H3 protocol: per (subject_id, label), shuffle windows with this seed and
+  # assign 70/15/15.  The original subject-disjoint `split` column is untouched.
+  seed: 20261105
+  train: 0.70
+  val: 0.15
+  test: 0.15
 preprocessing:
   window_seconds: 5
   frames_per_window: 16
