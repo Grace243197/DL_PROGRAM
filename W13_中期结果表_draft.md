@@ -120,6 +120,8 @@ within 接近饱和，说明在这套数据上“同受试者/同视频窗口随
 
 ## 7. 待回填 / 下一步
 
+> 给蔡的详细、可勾选待办见 [`W13_蔡依琦待办.md`](W13_蔡依琦待办.md)。
+
 - [ ] 蔡：within 四格 × 3 seeds（`--split-column within_split`），回填主表
       与每类召回；其中 CNN-Frame / CNN-Frame-Prior 的 seed-42 本地预览已补。
 - [ ] 蔡：within 的 CNN-GRU / CNN-GRU-Fusion × 3 seeds（主表剩余两行）。
