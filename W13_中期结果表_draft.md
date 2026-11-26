@@ -7,20 +7,22 @@
 
 ## 1. 主表：窗口级 Macro-F1
 
-3 seeds 均值 ± SD（RF、W11 四格）。within 只有 RF（3 seeds）和 CNN-Frame
-（seed 42 本地预览）已完成；其余标“待蔡”。
+3 seeds 均值 ± SD（RF、W11 四格）。within 只有 RF（3 seeds）、CNN-Frame 和
+CNN-Frame-Prior（seed 42 本地预览）已完成；其余标“待蔡”。
 
 | 模型 | subject-disjoint val | subject-disjoint test | subject-disjoint 视频级 | subject-disjoint 95% CI | within val | within test | within 视频级 |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | **RF-Prior** | 0.433 ± 0.002 | **0.453 ± 0.003** | — | — | 0.811 ± 0.003 | **0.816 ± 0.004** | — |
 | CNN-Frame | 0.371 ± 0.006 | 0.232 ± 0.015 | 0.228 | 0.153–0.299 | 0.999* | **0.9985*** | 1.000* |
-| CNN-Frame-Prior | 0.434 ± 0.008 | 0.253 ± 0.023 | 0.235 | 0.167–0.331 | 待蔡 | 待蔡 | 待蔡 |
+| CNN-Frame-Prior | 0.434 ± 0.008 | 0.253 ± 0.023 | 0.235 | 0.167–0.331 | 0.996* | **0.9973*** | 1.000* |
 | CNN-GRU | 0.388 ± 0.021 | 0.253 ± 0.013 | 0.277 | 0.181–0.327 | 待蔡 | 待蔡 | 待蔡 |
 | CNN-GRU-Fusion | 0.439 ± 0.023 | **0.268 ± 0.021** | 0.224 | 0.183–0.348 | 待蔡 | 待蔡 | 待蔡 |
 | 多数类基线 | — | 0.167 | — | — | — | — | — |
 
-`*` CNN-Frame within 是 **seed 42 单 seed 本地预览**（epochs 19，best 14；
-QWK 0.9982；窗口 95% CI 0.9967–0.9997），不是 3-seed 正式结果。
+`*` CNN-Frame / CNN-Frame-Prior within 是 **seed 42 单 seed 本地预览**：
+CNN-Frame epochs 19、best 14、QWK 0.9982、CI 0.9967–0.9997；
+CNN-Frame-Prior epochs 10、best 5、QWK 0.9967、CI 0.9936–0.9994。
+不是 3-seed 正式结果。
 
 **读法**
 
@@ -41,6 +43,7 @@ QWK 0.9982；窗口 95% CI 0.9967–0.9997），不是 3-seed 正式结果。
 | CNN-GRU（subject-disjoint） | 0.079 | **0.368** | 0.371 |
 | CNN-GRU-Fusion（subject-disjoint） | 0.169 | 0.327 | 0.356 |
 | CNN-Frame（within，seed 42） | 0.998 | 0.998 | 0.999 |
+| CNN-Frame-Prior（within，seed 42） | 0.996 | 0.997 | 1.000 |
 
 **失败模式**：subject-disjoint 下 CNN 的主要问题是 **Alert 召回崩溃**
 （0.079–0.210），而 RF 能到 0.452。先验注入确实把 Alert 召回从 0.135/0.079
@@ -70,6 +73,7 @@ QWK 0.9982；窗口 95% CI 0.9967–0.9997），不是 3-seed 正式结果。
 |---|---:|---:|---:|
 | RF-Prior | 0.453 | 0.816 | **+0.363** |
 | CNN-Frame（seed 42 预览） | 0.232 | 0.9985 | **+0.766** |
+| CNN-Frame-Prior（seed 42 预览） | 0.253 | 0.9973 | **+0.744** |
 
 within 接近饱和，说明在这套数据上“同受试者/同视频窗口随机切分”几乎把任务
 变成了身份识别；这正是 Proposal 批评的 within-subject 虚高。H1/H2 的
@@ -82,18 +86,45 @@ within 接近饱和，说明在这套数据上“同受试者/同视频窗口随
    最终配置只评一次。
 2. **9 人 val 太小**：不要再用 9 人 val 选模型；选模型用 42 个训练受试者的
    5 折 subject-level CV（W11 已跑）。
-3. **within 饱和**：train/val/test 共享受试者和视频；不能把 0.9985 当成
-   真实驾驶场景性能。
+3. **within 饱和**：train/val/test 共享受试者和视频；不能把 0.997–0.999
+   当成真实驾驶场景性能。
 4. **环境差异**：蔡用 torch 2.14.1+cu126；毛本机用 torch 2.11.0+cu128。
    互跑 CNN-Frame subject-disjoint seed 42：0.2196 vs 0.2285（Δ≈0.009），
    趋势一致；正式数字以蔡的 `dl_env` 为准。
 5. **RF 没有视频级聚合**：当前 RF 脚本只出窗口级指标，与 CNN 的视频级列
    不可直接比较；表里用“—”。
 
-## 6. 待回填 / 下一步
+## 6. 机制探针初版（clean within test）
+
+对 CNN-Frame-Prior 的 seed-42 checkpoint 在 within test 上统计 FiLM gate
+（576 维，3,378 个窗口）：
+
+| 统计量 | 值 |
+|---|---:|
+| gate 均值 / 标准差 | 0.689 / 0.278 |
+| gate 最小 / 最大 | ~0 / 1.0 |
+| 低饱和比例（<0.01） | 0.20% |
+| 高饱和比例（>0.99） | 4.04% |
+| 每类 gate 均值（alert / low / drowsy） | 0.691 / 0.687 / 0.688 |
+| 每受试者 gate 均值范围 | 0.658–0.717 |
+| 每维 gate 均值范围 | 0.086–0.980 |
+
+- 在 **clean within test** 上，gate 的类间差异几乎为零（0.687–0.691），
+  受试者间范围也很窄；它更像一个全局的、按先验整体缩放的调制，而不是
+  class-specific 的判别器。
+- 高饱和维度约 4%，低饱和约 0.2%；gate 没有整体塌缩。
+- 这只是单 checkpoint、within test、clean 条件的初版；真正的 H2 机制证据
+  要看 corruption 条件下 gate 均值/方差是否变化（W14）。
+- 探针脚本 `scripts/probe_gate.py` 目前在毛的本地运行分支，尚未入库；等
+  W11 合并后可以作为 model-side 小 PR 加入。
+
+## 7. 待回填 / 下一步
 
 - [ ] 蔡：within 四格 × 3 seeds（`--split-column within_split`），回填主表
-      与每类召回。
+      与每类召回；其中 CNN-Frame / CNN-Frame-Prior 的 seed-42 本地预览已补。
+- [ ] 蔡：within 的 CNN-GRU / CNN-GRU-Fusion × 3 seeds（主表剩余两行）。
+- [x] 毛：2×2 主效应探索性分析（见 §3）。
+- [ ] 毛/蔡：corruption 条件下 gate 探针（W14），比较 gate 均值/方差变化。
 - [ ] 两人：确认中期报告的主表口径（窗口级为主，视频级为辅；test 标
       exploratory）。
 - [ ] 毛：数据/结果章节文字；蔡：方法/模型章节文字；W13 合稿。
