@@ -131,3 +131,47 @@ within 接近饱和，说明在这套数据上“同受试者/同视频窗口随
 - [ ] 可选：给 RF 补 subject-level bootstrap CI（当前脚本未输出）。
 - [ ] 可选：把 2×2 效应用更正式的模型（seed 作为随机效应）复核；目前只有
       描述性均值 ± seed SD，n=3。
+
+## 8. 中期报告数据/结果章节骨架（毛负责）
+
+建议按以下顺序写（英文报告可直接用这些段落标题）：
+
+1. **Dataset and splits**
+   - UTA-RLDD，60 人，22,553 个合格 5s 窗口（16 帧，160×160）。
+   - 主口径：subject-disjoint 42/9/9（seed 20261105），同一受试者只在一个集合。
+   - H3 对照：within-subject subject×class 70/15/15（seed 20261105），60 人
+     都出现在三个集合；原 `split` 列未改。
+2. **Metrics**
+   - 窗口级 Macro-F1（主指标）、每类召回、QWK、Balanced Accuracy。
+   - 视频级 Macro-F1（mean probability + majority），用于 CNN 格。
+   - subject-level bootstrap 95% CI（1,000 次重采样）。
+3. **Subject-disjoint results**
+   - RF-Prior 0.453 ± 0.003 是最强基线。
+   - 四格 CNN 0.232–0.268；严格负结果；瓶颈在冻结特征。
+   - 视频级聚合救不回来；QWK 为负。
+4. **Per-class failure mode**
+   - CNN 的 Alert 召回 0.079–0.210，RF 为 0.452；先验注入把它提高到
+     0.169–0.210，但仍不够。
+   - Low-vigilant 对 RF 很难（0.352），对 CNN 反而略好（0.269–0.368）。
+5. **Within-subject contrast (H3)**
+   - RF 0.453 → 0.816（+0.363）；CNN-Frame 0.232 → 0.9985（+0.766）；
+     CNN-Frame-Prior 0.253 → 0.9973（+0.744）。
+   - within 饱和是因为共享受试者/视频；只作为虚高证据，不能当部署性能。
+   - 正式四格 × 3 seeds within 待蔡回填。
+6. **2×2 exploratory**
+   - 时序 +0.018 ± 0.011；先验 +0.018 ± 0.025；交互 −0.005 ± 0.023。
+   - 效应很小；H1 弱支持，H2 证据更弱；不要过度解读。
+7. **Mechanism probe (initial)**
+   - FiLM gate 均值 0.689、标准差 0.278；每类均值 0.687–0.691；
+     每受试者 0.658–0.717；低饱和 0.2% / 高饱和 4.0%。
+   - clean 条件下 gate 不是 class-specific；corruption 探针留到 W14。
+8. **Limitations**
+   - subject-disjoint test 已被多次评估，只能标 exploratory。
+   - 9 人 val 太小；选模型用 42 人 subject-level CV。
+   - 冻结 backbone；是否微调留到中期之后决定。
+   - 环境差异（torch 2.11 vs 2.14）带来约 0.009 的 test 波动。
+9. **Next steps**
+   - 蔡：within 四格 × 3 seeds，出正式表。
+   - corruption 鲁棒性 + gate 探针（W14）。
+   - 中期后决定是否微调 backbone。
+   - NTHU-DDD 外部验证，拿一个干净的 test 数字。
